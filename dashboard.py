@@ -6,9 +6,7 @@ import warnings
 from report_generator import generate_report, export_to_pdf
 from prophet import Prophet
 from prophet.plot import plot_plotly
-from mlxtend.frequent_patterns import apriori, association_rules
-
-# (NOTICE: NO streamlit-gsheets import is here!)
+# The 'mlxtend' import is no longer needed, so I have removed it.
 
 warnings.filterwarnings('ignore')
 
@@ -261,40 +259,9 @@ if not filtered_df.empty:
 else:
     st.info("Not enough data to perform customer segmentation.")
 
-# --- MARKET BASKET ANALYSIS ---
-st.subheader("🛒 Market Basket Analysis (What's Bought Together?)")
-st.info("This analysis finds which products are frequently purchased together in the same order.")
-min_support_threshold = st.slider("Select Minimum Support Threshold:", 0.005, 0.05, 0.01, 0.005, key="min_support")
 
-if st.button("Run Market Basket Analysis", key="run_mba"):
-    if not filtered_df.empty:
-        with st.spinner("Analyzing order patterns..."):
-            try:
-                basket_df = (filtered_df.groupby(['Order ID', 'Sub-Category'])['Quantity']
-                             .sum().unstack().reset_index().fillna(0)
-                             .set_index('Order ID'))
-                def encode_units(x):
-                    return 1 if x >= 1 else 0
-                
-                basket_encoded_df = basket_df.applymap(encode_units)
-                basket_encoded_df = basket_encoded_df[(basket_encoded_df > 0).sum(axis=1) >= 2]
+# --- MARKET BASKET ANALYSIS SECTION HAS BEEN REMOVED ---
 
-                if not basket_encoded_df.empty:
-                    frequent_itemsets = apriori(basket_encoded_df, min_support=min_support_threshold, use_colnames=True)
-                    if not frequent_itemsets.empty:
-                        rules = association_rules(frequent_itemsets, metric="lift", min_threshold=1)
-                        rules = rules.sort_values(['confidence', 'lift'], ascending=[False, False])
-                        st.markdown("#### Top 20 Product Association Rules")
-                        st.write("If a customer buys... ('Antecedents'), they are likely to also buy... ('Consequents').")
-                        st.dataframe(rules.head(20))
-                    else:
-                        st.warning("No frequent itemsets found. Try a lower support threshold.")
-                else:
-                    st.warning("No orders with 2 or more items found. Market Basket Analysis cannot be performed.")
-            except Exception as e:
-                st.error(f"An error occurred during Market Basket Analysis: {e}")
-    else:
-        st.info("Not enough data to perform Market Basket Analysis.")
 
 # --- Automated Analysis Report section ---
 st.subheader("📝 Automated Analysis Report")
