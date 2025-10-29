@@ -5,3 +5,4 @@ fpdf
 prophet
 mlxtend
 numpy
+streamlit-gsheets
