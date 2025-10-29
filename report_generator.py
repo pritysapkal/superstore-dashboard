@@ -1,6 +1,6 @@
 import pandas as pd
 import re
-from fpdf import FPDF
+from fpdf import FPDF  # fpdf2 is a "drop-in replacement", so the import name is the same
 
 def format_currency(amount):
     """Formats a number as USD currency."""
@@ -96,34 +96,33 @@ def generate_report(df):
 
 class PDF(FPDF):
     def header(self):
-        self.set_font('Arial', 'B', 12)
+        # fpdf2 fully supports Unicode, but the core 'Arial' font
+        # might not have the emoji. We'll set a standard font.
+        self.set_font('Helvetica', 'B', 12)
         self.cell(0, 10, 'Superstore Sales Analysis Report', 0, 1, 'C')
 
     def footer(self):
-        self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
+        self.set_font('Helvetica', 'I', 8)
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
 def export_to_pdf(report_text):
     """
     Exports the generated report text to a PDF file in memory.
-    This version includes a robust fix for encoding errors.
+    This version uses fpdf2 for proper Unicode (UTF-8) support.
     """
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font('Arial', '', 12) # This font uses cp1252 encoding
+    pdf.set_font('Helvetica', '', 12)
 
-    # --- THIS IS THE ROBUST FIX V3 ---
-    # 1. Remove known problem characters like emojis
-    pdf_text = re.sub(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002600-\U000027BF\U0001f900-\U0001f9ff\U0001fa70-\U0001faff]', '', report_text)
-
-    # 2. Encode the string to 'cp1252' (the font's encoding)
-    #    and replace any unknown characters with a simple '?'
-    pdf_safe_text = pdf_text.encode('cp1252', 'replace').decode('cp1252')
+    # --- THIS IS THE fpdf2 FIX ---
+    # 1. Remove the emoji, as the core PDF fonts don't include it.
+    #    This is the only character we need to remove.
+    pdf_text = re.sub(r'📈', '', report_text)
     
-    # 3. Pass the fully cleaned string to multi_cell
-    pdf.multi_cell(0, 10, pdf_safe_text)
+    # 2. Pass the text directly. fpdf2 handles UTF-8 automatically.
+    #    No more .encode() or .decode() hacks are needed.
+    pdf.multi_cell(0, 10, pdf_text)
 
-    # Return PDF as bytes for Streamlit
-    return bytes(pdf.output(dest='S'))
+    # 3. The .output() method from fpdf2 already returns bytes.
+    return pdf.output()
 
