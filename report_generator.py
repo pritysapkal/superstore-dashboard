@@ -111,20 +111,18 @@ def export_to_pdf(report_text):
     """
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font('Arial', '', 12)
+    pdf.set_font('Arial', '', 12) # This font uses cp1252 encoding
 
-    # --- THIS IS THE ROBUST FIX ---
-    # 1. Remove all non-ASCII characters (like emojis 📈)
-    #    which fpdf cannot handle.
-    pdf_text = re.sub(r'[^\x00-\x7F]+', '', report_text)
-    
-    # 2. Encode the cleaned text to 'latin-1' and ignore any
-    #    remaining problematic characters.
-    #    This is the safest way to pass a string to fpdf.
-    pdf_text_cleaned = pdf_text.encode('latin-1', 'ignore').decode('latin-1')
+    # --- THIS IS THE ROBUST FIX V3 ---
+    # 1. Remove known problem characters like emojis
+    pdf_text = re.sub(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002600-\U000027BF\U0001f900-\U0001f9ff\U0001fa70-\U0001faff]', '', report_text)
+
+    # 2. Encode the string to 'cp1252' (the font's encoding)
+    #    and replace any unknown characters with a simple '?'
+    pdf_safe_text = pdf_text.encode('cp1252', 'replace').decode('cp1252')
     
     # 3. Pass the fully cleaned string to multi_cell
-    pdf.multi_cell(0, 10, pdf_text_cleaned)
+    pdf.multi_cell(0, 10, pdf_safe_text)
 
     # Return PDF as bytes for Streamlit
     return bytes(pdf.output(dest='S'))
