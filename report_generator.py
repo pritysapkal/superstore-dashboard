@@ -129,4 +129,3 @@ def export_to_pdf(report_text):
     # Return PDF as bytes for Streamlit
     return bytes(pdf.output(dest='S'))
 
-
