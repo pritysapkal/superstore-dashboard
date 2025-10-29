@@ -105,22 +105,28 @@ class PDF(FPDF):
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
 def export_to_pdf(report_text):
-    """Exports the generated report text to a PDF file in memory."""
+    """
+    Exports the generated report text to a PDF file in memory.
+    This version includes a robust fix for encoding errors.
+    """
     pdf = PDF()
     pdf.add_page()
     pdf.set_font('Arial', '', 12)
 
-    # Sanitize text for PDF: remove all non-ASCII characters (emojis, etc.)
+    # --- THIS IS THE ROBUST FIX ---
+    # 1. Remove all non-ASCII characters (like emojis 📈)
+    #    which fpdf cannot handle.
     pdf_text = re.sub(r'[^\x00-\x7F]+', '', report_text)
     
-    # --- THIS IS THE FIX ---
-    # We must encode the string to 'latin-1' and then decode it back.
-    # This "cleans" the string for fpdf's multi_cell function.
-    pdf_text_cleaned = pdf_text.encode('latin-1', 'replace').decode('latin-1')
+    # 2. Encode the cleaned text to 'latin-1' and ignore any
+    #    remaining problematic characters.
+    #    This is the safest way to pass a string to fpdf.
+    pdf_text_cleaned = pdf_text.encode('latin-1', 'ignore').decode('latin-1')
     
-    # Pass the cleaned string to multi_cell
+    # 3. Pass the fully cleaned string to multi_cell
     pdf.multi_cell(0, 10, pdf_text_cleaned)
 
     # Return PDF as bytes for Streamlit
     return bytes(pdf.output(dest='S'))
+
 
