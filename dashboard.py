@@ -7,7 +7,8 @@ from report_generator import generate_report, export_to_pdf
 from prophet import Prophet
 from prophet.plot import plot_plotly
 from mlxtend.frequent_patterns import apriori, association_rules
-from streamlit_gsheets import GSheetsConnection # NEW IMPORT (Line 10)
+
+# (NOTICE: NO streamlit-gsheets import is here!)
 
 warnings.filterwarnings('ignore')
 
@@ -18,60 +19,39 @@ st.set_page_config(page_title="Superstore!!!", page_icon=":bar_chart:", layout="
 st.title(" :bar_chart: SuperStore Dashboard")
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
 
-# --- DELETE THIS OLD SECTION (Lines 21-36 from your code) ---
-# fl = st.file_uploader(":file_folder: Upload a file", type=(["csv", "txt", "xlsx", "xls"]))
-# if fl is not None:
-#     filename = fl.name
-#     st.write(filename)
-#     df = pd.read_csv(filename, encoding="ISO-8859-1")
-# else:
-#     try:
-#         df = pd.read_csv("Superstore.csv", encoding="ISO-8859-1")
-#     except FileNotFoundError:
-#         st.error("Default file 'Superstore.csv' not found. Please upload a file.")
-#         st.stop()
-# --- END OF SECTION TO DELETE ---
+# --- NEW LIVE DATA LOADING SECTION ---
 
+# PASTE YOUR "PUBLISH TO WEB" CSV LINK (from Step 1) HERE:
+DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRypHGWTsc0NnCBxIawXZ1PYO-mdU7Gmri_hfmtEl2A57AXEzqRywu474a4Q_3JGIp27yPPIXyqej9w/pub?gid=0&single=true&output=csv" 
 
-# --- ADD THIS NEW SECTION IN ITS PLACE ---
-# Create a connection to Google Sheets (This is the start of the new code)
-conn = st.connection("gsheets", type=GSheetsConnection) 
-
-# Display a spinner while data is loading
 @st.cache_data(ttl=600) # Cache data for 10 minutes
-def load_data():
-    # URL of your Google Sheet (the one you copied)
-    # Make sure the sharing is set to "Anyone with the link"
-    
-    # THIS IS THE LINE YOU ASKED ABOUT:
-    SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRypHGWTsc0NnCBxIawXZ1PYO-mdU7Gmri_hfmtEl2A57AXEzqRywu474a4Q_3JGIp27yPPIXyqej9w/pub?gid=0&single=true&output=csv" # (Line 31)
-    
+def load_data(url):
+    """Loads data from the Google Sheet "Publish to web" CSV link."""
     try:
-        # Assumes the sheet tab is named "Superstore" (the name of your csv file)
-        data = conn.read(spreadsheet=SHEET_URL, worksheet="Superstore") 
-        return data
+        # Use ISO-8859-1 encoding for compatibility
+        return pd.read_csv(url, encoding="ISO-8859-1")
     except Exception as e:
-        st.error(f"Error loading data from Google Sheets: {e}")
-        st.info("Please ensure your Google Sheet URL is correct and the sheet tab is named 'Superstore'.")
-        return pd.DataFrame() # Return empty dataframe on error
+        st.error(f"Error loading data from Google Sheets URL: {e}")
+        st.info("Please ensure your 'Publish to web' CSV link is correct and pasted in DATA_URL.")
+        return pd.DataFrame()
 
 with st.spinner("Loading live data from Google Sheets..."):
-    df = load_data()
+    df = load_data(DATA_URL)
 
 if df.empty:
+    st.error("Data could not be loaded. Please check your Google Sheet 'Publish to web' link.")
     st.stop()
 # --- END OF NEW DATA LOADING SECTION ---
 
-# Date processing and filtering
+
+# --- Date processing and filtering ---
 col1, col2 = st.columns((2))
 df["Order Date"] = pd.to_datetime(df["Order Date"], errors='coerce')
 df.dropna(subset=["Order Date"], inplace=True)
 
-# --- CORRECTED DATE LOGIC AS PER YOUR REQUIREMENT ---
 startDate = df["Order Date"].min()
-# Use the max date from the file as the default
 default_end_date = df["Order Date"].max()
-max_allowed_date = default_end_date # Or a future date if you prefer
+max_allowed_date = default_end_date 
 
 with col1:
     date1 = st.date_input("Start Date", startDate)
@@ -79,42 +59,37 @@ with col1:
 with col2:
     date2 = st.date_input(
         "End Date",
-        value=default_end_date,      # Sets the default date you see
-        max_value=max_allowed_date   # Stops the calendar from going past this date
+        value=default_end_date,
+        max_value=max_allowed_date
     )
     
-# Convert date inputs to datetime objects for comparison
 date1 = pd.to_datetime(date1)
 date2 = pd.to_datetime(date2)
 
-# Ensure date1 is before date2
 if date1 > date2:
     st.error("Error: Start date must be before end date.")
     st.stop()
 
 df = df[(df["Order Date"] >= date1) & (df["Order Date"] <= date2)].copy()
 
-# Sidebar filters
+# --- (The rest of your file is exactly the same as before) ---
+# --- Sidebar filters ---
 st.sidebar.header("Choose your filter: ")
-
-# Region filter
 region = st.sidebar.multiselect("Pick your Region", df["Region"].unique())
 if not region:
     df2 = df.copy()
 else:
     df2 = df[df["Region"].isin(region)]
 
-# State filter (dependent on region selection)
 state = st.sidebar.multiselect("Pick the State", df2["State"].unique())
 if not state:
     df3 = df2.copy()
 else:
     df3 = df2[df2["State"].isin(state)]
 
-# City filter (dependent on state selection)
 city = st.sidebar.multiselect("Pick the City", df3["City"].unique())
 
-# Filtering logic
+# --- Filtering logic ---
 if city:
     filtered_df = df3[df3["City"].isin(city)]
 elif state:
@@ -128,7 +103,6 @@ else:
 st.subheader("Key Performance Indicators")
 total_sales = float(filtered_df["Sales"].sum())
 total_profit = float(filtered_df["Profit"].sum())
-# Calculate Profit Margin, ensuring not to divide by zero
 if total_sales > 0:
     profit_margin = (total_profit / total_sales) * 100
 else:
@@ -136,27 +110,18 @@ else:
 total_orders = filtered_df["Order ID"].nunique()
 
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-
 with kpi1:
     st.metric(label="Total Sales", value=f"${total_sales:,.2f}")
-
 with kpi2:
     st.metric(label="Total Profit", value=f"${total_profit:,.2f}")
-
 with kpi3:
     st.metric(label="Profit Margin", value=f"{profit_margin:.2f}%")
-    
 with kpi4:
     st.metric(label="Total Orders", value=f"{total_orders:,}")
-
-st.markdown("---") # Adds a horizontal line for separation
-
+st.markdown("---")
 
 # --- Data Visualizations ---
-
-# Category and Region sales charts
 category_df = filtered_df.groupby(by=["Category"], as_index=False)["Sales"].sum()
-
 with col1:
     st.subheader("Category wise Sales")
     fig_cat_sales = px.bar(category_df, x="Category", y="Sales",
@@ -178,7 +143,6 @@ with cl1:
         csv = category_df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Data", data=csv, file_name="Category.csv", mime="text/csv",
                            help='Click here to download the data as a CSV file')
-
 with cl2:
     with st.expander("Region_ViewData"):
         region_sales = filtered_df.groupby(by="Region", as_index=False)["Sales"].sum()
@@ -207,14 +171,11 @@ with chart1:
     fig_seg_sales = px.pie(filtered_df, values="Sales", names="Segment", template="plotly_dark")
     fig_seg_sales.update_traces(text=filtered_df["Segment"], textposition="inside")
     st.plotly_chart(fig_seg_sales, use_container_width=True)
-
 with chart2:
     st.subheader('Category wise Sales')
     fig_cat_pie = px.pie(filtered_df, values="Sales", names="Category", template="gridon")
     fig_cat_pie.update_traces(text=filtered_df["Category"], textposition="inside")
     st.plotly_chart(fig_cat_pie, use_container_width=True)
-
-
 
 # Summary table and pivot table
 import plotly.figure_factory as ff
@@ -226,13 +187,12 @@ with st.expander("Summary_Table"):
     st.plotly_chart(fig_table, use_container_width=True)
 
     st.markdown("Month wise Sub-Category Sales")
-    # Check if 'month' column already exists
     if 'month' not in filtered_df.columns:
         filtered_df["month"] = filtered_df["Order Date"].dt.month_name()
     sub_category_pivot = pd.pivot_table(data=filtered_df, values="Sales", index=["Sub-Category"], columns="month")
     st.write(sub_category_pivot.style.background_gradient(cmap="Blues"))
 
-# Create a treemap based on Region, category, sub-Category
+# Create a treemap
 st.subheader("Hierarchical view of Sales using TreeMap")
 fig3 = px.treemap(filtered_df, path = ["Region","Category","Sub-Category"], values = "Sales",hover_data = ["Sales"],
                   color = "Sub-Category")
@@ -249,93 +209,103 @@ data1.update_layout(
     yaxis=dict(title="Profit", title_font=dict(size=19))
 )
 st.plotly_chart(data1, use_container_width=True)
-
 with st.expander("View Scatter Plot Data"):
     st.write(filtered_df.sample(50)[["Sales", "Profit", "Quantity", "Category", "Discount"]].style.background_gradient(cmap="Blues"))
 
-
 # --- CUSTOMER SEGMENTATION (RFM ANALYSIS) ---
 st.subheader("👥 Customer Segmentation")
-
 if not filtered_df.empty:
     try:
-        # Set a snapshot date for recency calculation (e.g., the day after the last order date in the dataset)
         snapshot_date = filtered_df['Order Date'].max() + pd.Timedelta(days=1)
-        
-        # Calculate RFM metrics
         rfm_df = filtered_df.groupby('Customer ID').agg({
-            'Order Date': lambda date: (snapshot_date - date.max()).days, # Recency
-            'Order ID': 'nunique', # Frequency
-            'Sales': 'sum' # Monetary
+            'Order Date': lambda date: (snapshot_date - date.max()).days,
+            'Order ID': 'nunique',
+            'Sales': 'sum'
         }).rename(columns={'Order Date': 'Recency', 'Order ID': 'Frequency', 'Sales': 'MonetaryValue'})
 
-        # Create RFM quantiles/scores
-        rfm_df['R_Score'] = pd.qcut(rfm_df['Recency'], 4, labels=[4, 3, 2, 1]) # Higher score for lower recency
+        rfm_df['R_Score'] = pd.qcut(rfm_df['Recency'], 4, labels=[4, 3, 2, 1])
         rfm_df['F_Score'] = pd.qcut(rfm_df['Frequency'].rank(method='first'), 4, labels=[1, 2, 3, 4])
         rfm_df['M_Score'] = pd.qcut(rfm_df['MonetaryValue'], 4, labels=[1, 2, 3, 4])
         
-        # --- More intuitive segmentation ---
-        # Define segment mapping
         segment_map = {
-            r'[1-2][1-2]': 'Hibernating',
-            r'[1-2][3-4]': 'At-Risk',
-            r'3[1-2]': 'Needs Attention',
-            r'33': 'About to Sleep',
-            r'[3-4]4': 'Loyal Customers',
-            r'4[1-2]': 'Promising',
-            r'43': 'Potential Loyalists',
-            r'44': 'Champions'
+            r'[1-2][1-2]': 'Hibernating', r'[1-2][3-4]': 'At-Risk',
+            r'3[1-2]': 'Needs Attention', r'33': 'About to Sleep',
+            r'[3-4]4': 'Loyal Customers', r'4[1-2]': 'Promising',
+            r'43': 'Potential Loyalists', r'44': 'Champions'
         }
-
         rfm_df['Segment'] = rfm_df['R_Score'].astype(str) + rfm_df['F_Score'].astype(str)
         rfm_df['Segment'] = rfm_df['Segment'].replace(segment_map, regex=True)
 
-        # --- Visualize the Segments ---
         segment_counts = rfm_df['Segment'].value_counts().reset_index()
         segment_counts.columns = ['Segment', 'Customer Count']
 
         fig_segment = px.bar(
-            segment_counts,
-            x='Segment',
-            y='Customer Count',
-            title="Number of Customers by Segment",
-            text='Customer Count',
-            template="seaborn"
+            segment_counts, x='Segment', y='Customer Count',
+            title="Number of Customers by Segment", text='Customer Count', template="seaborn"
         )
         st.plotly_chart(fig_segment, use_container_width=True)
-
         with st.expander("View RFM Data and Segment Definitions"):
             st.markdown("""
             - **Champions (44):** Bought recently, buy often, and spend the most.
-            - **Loyal Customers ([3-4]4):** Buy on a regular basis. Responsive to promotions.
-            - **Potential Loyalists (43):** Recent customers, but spent a good amount and bought more than once.
+            - **Loyal Customers ([3-4]4):** Buy on a regular basis.
+            - **Potential Loyalists (43):** Recent customers, good spend.
             - **Promising (4[1-2]):** Recent shoppers, but haven't spent much.
-            - **Needs Attention (3[1-2]):** Above average recency, frequency, and monetary values. May not have bought very recently though.
-            - **About to Sleep (33):** Below average recency, frequency, and monetary values. Will be lost if not reactivated.
-            - **At-Risk ([1-2][3-4]):** Purchased often and spent big, but it’s been a while. Need to bring them back!
-            - **Hibernating ([1-2][1-2]):** Last purchase was long back, low spenders, and low number of orders.
+            - **Needs Attention (3[1-2]):** May not have bought very recently.
+            - **About to Sleep (33):** Below average. Will be lost if not reactivated.
+            - **At-Risk ([1-2][3-4]):** Purchased often and spent big, but it’s been a while.
+            - **Hibernating ([1-2][1-2]):** Last purchase was long back, low spenders.
             """)
             st.dataframe(rfm_df)
     except Exception as e:
-        st.error(f"An error occurred during RFM Analysis. This can happen with very small or unique datasets. Error: {e}")
+        st.error(f"An error occurred during RFM Analysis. This can happen with small datasets. Error: {e}")
 else:
     st.info("Not enough data to perform customer segmentation.")
 
+# --- MARKET BASKET ANALYSIS ---
+st.subheader("🛒 Market Basket Analysis (What's Bought Together?)")
+st.info("This analysis finds which products are frequently purchased together in the same order.")
+min_support_threshold = st.slider("Select Minimum Support Threshold:", 0.005, 0.05, 0.01, 0.005, key="min_support")
 
-# Automated Analysis Report section
+if st.button("Run Market Basket Analysis", key="run_mba"):
+    if not filtered_df.empty:
+        with st.spinner("Analyzing order patterns..."):
+            try:
+                basket_df = (filtered_df.groupby(['Order ID', 'Sub-Category'])['Quantity']
+                             .sum().unstack().reset_index().fillna(0)
+                             .set_index('Order ID'))
+                def encode_units(x):
+                    return 1 if x >= 1 else 0
+                
+                basket_encoded_df = basket_df.applymap(encode_units)
+                basket_encoded_df = basket_encoded_df[(basket_encoded_df > 0).sum(axis=1) >= 2]
+
+                if not basket_encoded_df.empty:
+                    frequent_itemsets = apriori(basket_encoded_df, min_support=min_support_threshold, use_colnames=True)
+                    if not frequent_itemsets.empty:
+                        rules = association_rules(frequent_itemsets, metric="lift", min_threshold=1)
+                        rules = rules.sort_values(['confidence', 'lift'], ascending=[False, False])
+                        st.markdown("#### Top 20 Product Association Rules")
+                        st.write("If a customer buys... ('Antecedents'), they are likely to also buy... ('Consequents').")
+                        st.dataframe(rules.head(20))
+                    else:
+                        st.warning("No frequent itemsets found. Try a lower support threshold.")
+                else:
+                    st.warning("No orders with 2 or more items found. Market Basket Analysis cannot be performed.")
+            except Exception as e:
+                st.error(f"An error occurred during Market Basket Analysis: {e}")
+    else:
+        st.info("Not enough data to perform Market Basket Analysis.")
+
+# --- Automated Analysis Report section ---
 st.subheader("📝 Automated Analysis Report")
-
 if 'report' not in st.session_state:
     st.session_state.report = ""
-
 if st.button("Generate Analysis Report"):
     if not filtered_df.empty:
         with st.spinner("Analyzing data and generating report..."):
             st.session_state.report = generate_report(filtered_df)
     else:
         st.warning("No data available to generate a report based on current filters.")
-        st.session_state.report = ""
-
 if st.session_state.report:
     st.markdown(st.session_state.report)
     try:
@@ -346,18 +316,13 @@ if st.session_state.report:
             file_name="Superstore_Analysis_Report.pdf",
             mime="application/pdf"
         )
-    except ImportError as e:
-        st.error(f"PDF generation failed. Please ensure 'fpdf' is installed (`pip install fpdf`). Error: {e}")
     except Exception as e:
         st.error(f"An error occurred during PDF generation: {e}")
 else:
     st.info("Click the button above to generate an automated summary of the currently filtered data.")
 
-
 # --- PREDICTIVE SALES FORECASTING ---
 st.subheader("🔮 Predictive Sales Forecasting")
-
-# User input for forecast period
 forecast_period = st.slider("Select Forecast Period (Months)", 1, 12, 6, key="forecast_slider")
 run_forecast_button = st.button("Run Forecast", key="run_forecast")
 
@@ -365,20 +330,12 @@ if run_forecast_button:
     if not linechart.empty:
         with st.spinner("Training model and generating forecast..."):
             try:
-                # Prepare data for Prophet (it requires columns 'ds' and 'y')
-                # Convert 'month_year' from "YYYY : Mon" string back to a proper date
                 forecast_df = linechart.rename(columns={"month_year": "ds", "Sales": "y"})
                 forecast_df['ds'] = pd.to_datetime(forecast_df['ds'], format="%Y : %b")
-
-                # Initialize and train the Prophet model
                 model = Prophet()
                 model.fit(forecast_df)
-
-                # Create future dataframe and make predictions
-                future = model.make_future_dataframe(periods=forecast_period, freq='MS') # MS for Month Start
+                future = model.make_future_dataframe(periods=forecast_period, freq='MS')
                 forecast = model.predict(future)
-
-                # Display the forecast plot
                 st.markdown("#### Forecast Results")
                 fig_forecast = plot_plotly(model, forecast)
                 fig_forecast.update_layout(
@@ -387,10 +344,8 @@ if run_forecast_button:
                     yaxis_title="Sales Amount"
                 )
                 st.plotly_chart(fig_forecast, use_container_width=True)
-
-                # Display the raw forecast data
                 with st.expander("View Forecast Data"):
-                    st.write("The table below shows the predicted sales values (`yhat`) along with the lower and upper confidence bounds.")
+                    st.write("Predicted sales (`yhat`) with confidence bounds.")
                     st.dataframe(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(forecast_period))
             except Exception as e:
                 st.error(f"An error occurred during forecasting: {e}")
