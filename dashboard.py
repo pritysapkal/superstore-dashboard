@@ -7,7 +7,7 @@ from report_generator import generate_report, export_to_pdf
 from prophet import Prophet
 from prophet.plot import plot_plotly
 from mlxtend.frequent_patterns import apriori, association_rules
-from streamlit_gsheets import GSheetsConnection 
+from streamlit_gsheets import GSheetsConnection # NEW IMPORT (Line 10)
 
 warnings.filterwarnings('ignore')
 
@@ -44,7 +44,7 @@ def load_data():
     # Make sure the sharing is set to "Anyone with the link"
     
     # THIS IS THE LINE YOU ASKED ABOUT:
-    SHEET_URL = "https://docs.google.com/spreadsheets/d/1_iOEbp3nHfYxzQOZfz6P8jFa3Pll9mhzJD3U-gtdrKg/edit?usp=sharing" # (Line 31)
+    SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRypHGWTsc0NnCBxIawXZ1PYO-mdU7Gmri_hfmtEl2A57AXEzqRywu474a4Q_3JGIp27yPPIXyqej9w/pub?gid=0&single=true&output=csv" # (Line 31)
     
     try:
         # Assumes the sheet tab is named "Superstore" (the name of your csv file)
