@@ -1,6 +1,6 @@
 import pandas as pd
 import re
-from fpdf import FPDF  # fpdf2 is a "drop-in replacement", so the import name is the same
+from fpdf import FPDF  # This will import fpdf2, as specified in requirements.txt
 
 def format_currency(amount):
     """Formats a number as USD currency."""
@@ -25,7 +25,6 @@ def generate_report(df):
     profit_margin = (total_profit / total_sales) * 100 if total_sales > 0 else 0
     
     # --- Best and Worst Performers ---
-    # By Category
     category_sales = df.groupby('Category')['Sales'].sum()
     if not category_sales.empty:
         best_category = category_sales.idxmax()
@@ -34,7 +33,6 @@ def generate_report(df):
         best_category = "N/A"
         best_category_sales = 0
 
-    # By Sub-Category
     subcategory_profit = df.groupby('Sub-Category')['Profit'].sum()
     if not subcategory_profit.empty:
         most_profitable_subcategory = subcategory_profit.idxmax()
@@ -43,7 +41,6 @@ def generate_report(df):
         most_profitable_subcategory = "N/A"
         least_profitable_subcategory = "N/A"
 
-    # By Region
     region_sales = df.groupby('Region')['Sales'].sum()
     if not region_sales.empty:
         best_region = region_sales.idxmax()
@@ -52,15 +49,13 @@ def generate_report(df):
 
     # --- Time Series Insights ---
     try:
-        # Ensure 'Order Date' is in datetime format before using .dt accessor
         df['Order Date'] = pd.to_datetime(df['Order Date'])
         monthly_sales = df.set_index('Order Date').resample('M')['Sales'].sum()
         peak_month = monthly_sales.idxmax().strftime('%B %Y') if not monthly_sales.empty else "N/A"
     except Exception:
-        peak_month = "N/A" # Handle potential resampling errors with very little data
+        peak_month = "N/A"
 
     # --- Building the Report String ---
-    
     report = f"""
     ### 📈 **Automated Sales & Profit Analysis**
 
@@ -106,29 +101,27 @@ class PDF(FPDF):
 def export_to_pdf(report_text):
     """
     Exports the generated report text to a PDF file in memory.
-    This version includes a robust encoding fix to prevent
-    the "Failed to load PDF" corrupted file error.
+    This version includes the FINAL fix for the 0kb/corrupted PDF error.
     """
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font('Helvetica', '', 12) # This font uses 'cp1252' encoding
+    pdf.set_font('Helvetica', '', 12) 
 
-    # --- THIS IS THE fpdf2 CORRUPTION FIX ---
+    # --- THIS IS THE FINAL FIX ---
     
-    # 1. Remove the emoji, as the core PDF fonts don't include it.
+    # 1. Remove the emoji, as it's not in the 'latin-1' or 'cp1252' charsets.
     pdf_text = re.sub(r'📈', '', report_text)
     
-    # 2. Force-encode the text to the font's encoding ('cp1252').
-    #    This will find any characters the font can't handle.
-    # 3. Replace any unknown characters with a simple '?' instead of crashing.
-    # 4. Decode it back to a string that multi_cell can use.
-    #
-    # This is the line that prevents the "Failed to load" error.
-    # It ensures the text we pass to the PDF is 100% safe.
-    pdf_safe_text = pdf_text.encode('cp1252', 'replace').decode('cp1252')
-
-    # 5. Pass the 100% safe text to multi_cell.
+    # 2. The core PDF fonts (like Helvetica) use 'latin-1' / 'cp1252' encoding.
+    #    They cannot render other characters.
+    #    We MUST encode the text to this format.
+    #    'errors="replace"' will change any unknown character (like a weird
+    #    quote or symbol) into a '?' instead of crashing.
+    #    This GUARANTEES the text is 100% safe to give to the PDF.
+    pdf_safe_text = pdf_text.encode('latin-1', errors='replace').decode('latin-1')
+    
+    # 3. Pass the 100% safe text to multi_cell. 
     pdf.multi_cell(0, 10, pdf_safe_text)
 
-    # 6. The .output() method from fpdf2 already returns bytes.
+    # 4. The .output() method from fpdf2 already returns bytes.
     return pdf.output()
