@@ -101,27 +101,18 @@ class PDF(FPDF):
 def export_to_pdf(report_text):
     """
     Exports the generated report text to a PDF file in memory.
-    This version includes the FINAL fix for the 0kb/corrupted PDF error.
+    Returns PDF bytes that can be directly downloaded in Streamlit.
     """
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font('Helvetica', '', 12) 
+    pdf.set_font('Helvetica', '', 12)
 
-    # --- THIS IS THE FINAL FIX ---
-    
-    # 1. Remove the emoji, as it's not in the 'latin-1' or 'cp1252' charsets.
-    pdf_text = re.sub(r'📈', '', report_text)
-    
-    # 2. The core PDF fonts (like Helvetica) use 'latin-1' / 'cp1252' encoding.
-    #    They cannot render other characters.
-    #    We MUST encode the text to this format.
-    #    'errors="replace"' will change any unknown character (like a weird
-    #    quote or symbol) into a '?' instead of crashing.
-    #    This GUARANTEES the text is 100% safe to give to the PDF.
+    # Remove emoji or any non-latin characters (fpdf can't handle them)
+    pdf_text = re.sub(r'[^\x00-\x7F]+', '', report_text)
     pdf_safe_text = pdf_text.encode('latin-1', errors='replace').decode('latin-1')
-    
-    # 3. Pass the 100% safe text to multi_cell. 
+
     pdf.multi_cell(0, 10, pdf_safe_text)
 
-    # 4. The .output() method from fpdf2 already returns bytes.
-    return pdf.output()
+    # ✅ Return PDF as bytes instead of writing to file
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+    return pdf_bytes
