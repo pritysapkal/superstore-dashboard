@@ -96,8 +96,6 @@ def generate_report(df):
 
 class PDF(FPDF):
     def header(self):
-        # fpdf2 fully supports Unicode, but the core 'Arial' font
-        # might not have the emoji. We'll set a standard font.
         self.set_font('Helvetica', 'B', 12)
         self.cell(0, 10, 'Superstore Sales Analysis Report', 0, 1, 'C')
 
@@ -108,21 +106,29 @@ class PDF(FPDF):
 def export_to_pdf(report_text):
     """
     Exports the generated report text to a PDF file in memory.
-    This version uses fpdf2 for proper Unicode (UTF-8) support.
+    This version includes a robust encoding fix to prevent
+    the "Failed to load PDF" corrupted file error.
     """
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font('Helvetica', '', 12)
+    pdf.set_font('Helvetica', '', 12) # This font uses 'cp1252' encoding
 
-    # --- THIS IS THE fpdf2 FIX ---
+    # --- THIS IS THE fpdf2 CORRUPTION FIX ---
+    
     # 1. Remove the emoji, as the core PDF fonts don't include it.
-    #    This is the only character we need to remove.
     pdf_text = re.sub(r'📈', '', report_text)
     
-    # 2. Pass the text directly. fpdf2 handles UTF-8 automatically.
-    #    No more .encode() or .decode() hacks are needed.
-    pdf.multi_cell(0, 10, pdf_text)
+    # 2. Force-encode the text to the font's encoding ('cp1252').
+    #    This will find any characters the font can't handle.
+    # 3. Replace any unknown characters with a simple '?' instead of crashing.
+    # 4. Decode it back to a string that multi_cell can use.
+    #
+    # This is the line that prevents the "Failed to load" error.
+    # It ensures the text we pass to the PDF is 100% safe.
+    pdf_safe_text = pdf_text.encode('cp1252', 'replace').decode('cp1252')
 
-    # 3. The .output() method from fpdf2 already returns bytes.
+    # 5. Pass the 100% safe text to multi_cell.
+    pdf.multi_cell(0, 10, pdf_safe_text)
+
+    # 6. The .output() method from fpdf2 already returns bytes.
     return pdf.output()
-
