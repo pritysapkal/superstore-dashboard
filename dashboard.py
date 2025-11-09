@@ -374,11 +374,12 @@ if run_forecast_button:
                 st.plotly_chart(fig_forecast, use_container_width=True)
 
                 # Display the raw forecast data
-                with st.expander("View Forecast Data"):
-                    st.write("The table below shows the predicted sales values (`yhat`) along with the lower and upper confidence bounds.")
-                    st.dataframe(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(forecast_period))
+                # with st.expander("View Forecast Data"):
+                #     st.write("The table below shows the predicted sales values (`yhat`) along with the lower and upper confidence bounds.")
+                #     st.dataframe(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(forecast_period))
             except Exception as e:
                 st.error(f"An error occurred during forecasting: {e}")
     else:
         st.warning("Not enough data to run a forecast. Please select a broader date range or different filters.")
+
 
