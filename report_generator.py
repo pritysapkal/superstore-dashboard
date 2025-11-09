@@ -1,6 +1,6 @@
 import pandas as pd
 import re
-from fpdf import FPDF  # This will import fpdf2, as specified in requirements.txt
+from fpdf import FPDF  # This will use fpdf2
 
 def format_currency(amount):
     """Formats a number as USD currency."""
@@ -10,44 +10,25 @@ def format_currency(amount):
         return f"-${abs(amount):,.2f}"
 
 def generate_report(df):
-    """
-    Analyzes the filtered DataFrame and generates a dynamic, human-readable report.
-    Handles empty or insufficient data gracefully.
-    """
-    
-    # Check for empty data
+    """Analyzes the filtered DataFrame and generates a readable report."""
     if df.empty:
-        return "### ⚠️ No Data Available\n\nNo data matches the current filters. Please select a broader date range or different filter options."
+        return "### ⚠️ No Data Available\n\nNo data matches the current filters."
 
-    # --- Overall Performance ---
     total_sales = df['Sales'].sum()
     total_profit = df['Profit'].sum()
     profit_margin = (total_profit / total_sales) * 100 if total_sales > 0 else 0
-    
-    # --- Best and Worst Performers ---
+
     category_sales = df.groupby('Category')['Sales'].sum()
-    if not category_sales.empty:
-        best_category = category_sales.idxmax()
-        best_category_sales = category_sales.max()
-    else:
-        best_category = "N/A"
-        best_category_sales = 0
+    best_category = category_sales.idxmax() if not category_sales.empty else "N/A"
+    best_category_sales = category_sales.max() if not category_sales.empty else 0
 
     subcategory_profit = df.groupby('Sub-Category')['Profit'].sum()
-    if not subcategory_profit.empty:
-        most_profitable_subcategory = subcategory_profit.idxmax()
-        least_profitable_subcategory = subcategory_profit.idxmin()
-    else:
-        most_profitable_subcategory = "N/A"
-        least_profitable_subcategory = "N/A"
+    most_profitable_subcategory = subcategory_profit.idxmax() if not subcategory_profit.empty else "N/A"
+    least_profitable_subcategory = subcategory_profit.idxmin() if not subcategory_profit.empty else "N/A"
 
     region_sales = df.groupby('Region')['Sales'].sum()
-    if not region_sales.empty:
-        best_region = region_sales.idxmax()
-    else:
-        best_region = "N/A"
+    best_region = region_sales.idxmax() if not region_sales.empty else "N/A"
 
-    # --- Time Series Insights ---
     try:
         df['Order Date'] = pd.to_datetime(df['Order Date'])
         monthly_sales = df.set_index('Order Date').resample('M')['Sales'].sum()
@@ -55,40 +36,30 @@ def generate_report(df):
     except Exception:
         peak_month = "N/A"
 
-    # --- Building the Report String ---
     report = f"""
     ### 📈 **Automated Sales & Profit Analysis**
 
-    Here is a summary of the data based on your current filters.
-
-    ---
-
     #### **Executive Summary:**
+    * **Total Sales:** {format_currency(total_sales)}
+    * **Total Profit:** {format_currency(total_profit)}
+    * **Overall Profit Margin:** {profit_margin:.2f}%
 
-    * **Total Sales:** **{format_currency(total_sales)}**
-    * **Total Profit:** **{format_currency(total_profit)}**
-    * **Overall Profit Margin:** **{profit_margin:.2f}%**
-
-    The analysis reveals that **{best_region}** was the top-performing region. 
-    The primary driver of sales was the **{best_category}** category, contributing **{format_currency(best_category_sales)}**.
-
-    ---
+    The best region was **{best_region}**, led by **{best_category}** category
+    with sales of {format_currency(best_category_sales)}.
 
     #### **Detailed Insights:**
-
     * **Top Performers:**
-        * **Best Sales Category:** **{best_category}** ({format_currency(best_category_sales)}).
-        * **Most Profitable Sub-Category:** **{most_profitable_subcategory}**.
-
+        * **Best Sales Category:** {best_category} ({format_currency(best_category_sales)}).
+        * **Most Profitable Sub-Category:** {most_profitable_subcategory}.
     * **Areas for Improvement:**
-        * **Least Profitable Sub-Category:** **{least_profitable_subcategory}**. This sub-category should be reviewed.
-
+        * **Least Profitable Sub-Category:** {least_profitable_subcategory}.
     * **Temporal Trends:**
-        * The sales performance peaked in **{peak_month}**, indicating a potential seasonal high.
+        * Sales performance peaked in **{peak_month}**.
     """
-    
     return report
 
+
+# --- PDF Class ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Helvetica', 'B', 12)
@@ -98,21 +69,25 @@ class PDF(FPDF):
         self.set_font('Helvetica', 'I', 8)
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
+
+# --- Export to PDF ---
 def export_to_pdf(report_text):
     """
-    Exports the generated report text to a PDF file in memory.
-    Returns PDF bytes that can be directly downloaded in Streamlit.
+    Generates a valid PDF in memory and returns it as bytes.
+    Compatible with Streamlit download_button().
     """
     pdf = PDF()
     pdf.add_page()
     pdf.set_font('Helvetica', '', 12)
 
-    # Remove emoji or any non-latin characters (fpdf can't handle them)
+    # Remove emojis and non-latin characters (fpdf can't render them)
     pdf_text = re.sub(r'[^\x00-\x7F]+', '', report_text)
     pdf_safe_text = pdf_text.encode('latin-1', errors='replace').decode('latin-1')
 
     pdf.multi_cell(0, 10, pdf_safe_text)
 
-    # ✅ Return PDF as bytes instead of writing to file
-    pdf_bytes = pdf.output(dest='S').encode('latin-1')
-    return pdf_bytes
+    # ✅ Correct: output as bytes (bytearray) — no extra encode()
+    pdf_bytes = pdf.output(dest='S')
+    if isinstance(pdf_bytes, str):
+        pdf_bytes = pdf_bytes.encode('latin-1')  # fallback (older fpdf2)
+    return bytes(pdf_bytes)
