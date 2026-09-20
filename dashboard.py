@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import plotly.express as px
 import pandas as pd
@@ -16,31 +17,42 @@ st.set_page_config(page_title="Superstore!!!", page_icon=":bar_chart:", layout="
 st.title(" :bar_chart: SuperStore Dashboard")
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
 
-# --- THIS IS THE NEW "LIVE UPDATE" SECTION ---
+# --- THIS IS "LIVE UPDATE" SECTION ---
 
-# This is the "Publish to web" CSV link from your Google Sheet
-# IMPORTANT: PASTE YOUR GOOGLE SHEET "PUBLISH TO WEB" CSV LINK HERE
-DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRypHGWTsc0NnCBxIawXZ1PYO-mdU7Gmri_hfmtEl2A57AXEzqRywu474a4Q_3JGIp27yPPIXyqej9w/pub?gid=0&single=true&output=csv" 
+# This is the published CSV link from your Google Sheet. It can expire if the sheet is unpublished.
+DATA_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT3040p13UxKlmo-PKZPfkeNcy5cDuN-Ki4gNwowaRh3ifsj_kcmV4b22gnCaZDcxD2-r_hlDD-rTyl/pub?output=csv"
+LOCAL_DATA_FILE = os.path.join(os.path.dirname(__file__), "Superstore.csv")
 
-@st.cache_data(ttl=600) # Cache for 10 minutes (600 seconds)
+@st.cache_data(ttl=600)
 def load_data(url):
-    """Loads data from the Google Sheet and caches it."""
+    """Loads data from a live Google Sheet when available, otherwise falls back to the local CSV file."""
+    # Try the Google Sheet first
     try:
         df = pd.read_csv(url)
-        # Process dates right after loading
         df["Order Date"] = pd.to_datetime(df["Order Date"], errors='coerce')
         df.dropna(subset=["Order Date"], inplace=True)
-        return df
+        if not df.empty:
+            return df
     except Exception as e:
-        st.error(f"Error loading data from Google Sheets: {e}")
-        return pd.DataFrame() # Return empty dataframe on error
+        st.info("Live Google Sheet unavailable. Falling back to the local dataset.")
 
-# Load the data
-with st.spinner("Loading live data from Google Sheets..."):
+    # Fallback to the bundled project CSV
+    try:
+        df = pd.read_csv(LOCAL_DATA_FILE)
+        df["Order Date"] = pd.to_datetime(df["Order Date"], errors='coerce')
+        df.dropna(subset=["Order Date"], inplace=True)
+        if not df.empty:
+            return df
+    except Exception as local_error:
+        st.error(f"Error loading local data file: {local_error}")
+
+    return pd.DataFrame()
+
+with st.spinner("Loading sales data..."):
     df = load_data(DATA_URL)
 
 if df.empty:
-    st.error("Could not load data. Please check the Google Sheet link.")
+    st.error("Could not load data. Please check the Google Sheet link or make sure the local dataset file exists.")
     st.stop()
 
 # --- END OF LIVE UPDATE SECTION ---
@@ -52,10 +64,9 @@ col1, col2 = st.columns((2))
 startDate = df["Order Date"].min()
 default_end_date = df["Order Date"].max() # This will now show 2024 if your data is updated
 
-# --- THIS IS THE CHANGE YOU REQUESTED ---
-# This sets the *calendar's* absolute maximum date to the end of 2024.
+
 max_allowed_date = pd.to_datetime("2024-12-31") 
-# --- END OF CHANGE ---
+
 
 with col1:
     date1 = st.date_input("Start Date", startDate)
@@ -374,12 +385,11 @@ if run_forecast_button:
                 st.plotly_chart(fig_forecast, use_container_width=True)
 
                 # Display the raw forecast data
-                # with st.expander("View Forecast Data"):
-                #     st.write("The table below shows the predicted sales values (`yhat`) along with the lower and upper confidence bounds.")
-                #     st.dataframe(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(forecast_period))
+                with st.expander("View Forecast Data"):
+                    st.write("The table below shows the predicted sales values (`yhat`) along with the lower and upper confidence bounds.")
+                    st.dataframe(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail(forecast_period))
             except Exception as e:
                 st.error(f"An error occurred during forecasting: {e}")
     else:
         st.warning("Not enough data to run a forecast. Please select a broader date range or different filters.")
-
 
