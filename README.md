@@ -2,6 +2,10 @@
 
 A Streamlit-powered business intelligence dashboard for analyzing a Superstore sales dataset. The application provides interactive filtering, KPI summaries, trend and category analysis, customer segmentation, automated reporting, and sales forecasting.
 
+## Live app
+
+Open the deployed dashboard here: https://superstore-dashboard-kyimkdiuzk58oss36mjqsw.streamlit.app/
+
 ## Overview
 
 This project helps users explore sales performance across regions, states, cities, categories, and time periods. It is designed for quick operational analysis and executive-style reporting, with a clean dashboard interface and exportable insights.
